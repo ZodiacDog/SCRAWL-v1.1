@@ -1,0 +1,33 @@
+# ═══════════════════════════════════════════════════════════════
+# SCRAWL-in-SCRAWL: Consensus Round
+#
+# A complete propose→vote→commit consensus round written as a
+# SCRAWL program. Demonstrates that SCRAWL's consensus protocol
+# is expressible in its own instruction set.
+#
+# ML Innovations LLC · M. L. McKnight · Pheba, Mississippi · 2026
+# ═══════════════════════════════════════════════════════════════
+
+# ── Setup: derive identity for authentication ──
+CR0 = identity.derive(seed=0xCAFE, depth=8)
+R0 = identity.verify(CR0, R0)
+
+# ── Propose: "adopt protocol v1.1" ──
+# Proposal ID=1, data from R0 (agent identity), agents=[0, 1, 2]
+consensus.propose(proposal_1, data=R0, agents=[agent_0, agent_1, agent_2])
+
+# ── Set quorum: 67% approval required ──
+consensus.quorum(proposal_1, threshold=0.67)
+
+# ── All three agents vote APPROVE ──
+consensus.vote(proposal_1, agent=agent_0, vote=APPROVE)
+consensus.vote(proposal_1, agent=agent_1, vote=APPROVE)
+consensus.vote(proposal_1, agent=agent_2, vote=APPROVE)
+
+# ── Commit: quorum met (3/3 > 67%) ──
+R1 = consensus.commit(proposal_1)
+
+# ── Yield result: 1 = committed, 0 = rejected ──
+yield R1
+
+halt

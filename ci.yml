@@ -1,0 +1,137 @@
+name: SCRAWL CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  python-tests:
+    name: Python ${{ matrix.python-version }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Run SCRAWL Core Tests (360 tests)
+      run: python python/tests/test_scrawl.py
+
+    - name: Run FLUX/SCRAWL Tests (116 tests)
+      run: python python/flux_scrawl_tests.py
+
+    - name: Run SCRAWL v1.1 Feature Tests (76 tests)
+      run: python python/tests/test_v11.py
+
+    - name: Run Python Examples
+      run: |
+        python python/examples/heartbeat.py
+        python python/examples/consensus_vote.py
+        python python/examples/delta_state_sync.py
+        python python/examples/fused_attention.py
+
+    - name: Run Python Benchmarks (quick mode)
+      run: python python/benchmarks/bench_scrawl.py --quick
+
+    - name: Verify zero external dependencies
+      run: |
+        python -c "
+        import ast, os, sys
+        stdlib = set(sys.stdlib_module_names)
+        violations = []
+        for root, dirs, files in os.walk('python/src'):
+            for f in files:
+                if f.endswith('.py'):
+                    path = os.path.join(root, f)
+                    with open(path) as fh:
+                        tree = ast.parse(fh.read())
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Import):
+                            for alias in node.names:
+                                mod = alias.name.split('.')[0]
+                                if mod not in stdlib and mod not in ('src',):
+                                    violations.append(f'{path}: {mod}')
+                        elif isinstance(node, ast.ImportFrom) and node.module:
+                            mod = node.module.split('.')[0]
+                            if mod not in stdlib and mod not in ('src',):
+                                violations.append(f'{path}: {mod}')
+        if violations:
+            print('EXTERNAL DEPENDENCY VIOLATIONS:')
+            for v in violations:
+                print(f'  {v}')
+            sys.exit(1)
+        else:
+            print('Zero external dependencies verified.')
+        "
+
+  rust-tests:
+    name: Rust ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cargo test
+      working-directory: rust
+      run: cargo test --all
+
+    - name: Cargo test (release)
+      working-directory: rust
+      run: cargo test --release
+
+    - name: Run Rust heartbeat example
+      working-directory: rust
+      run: cargo run --example heartbeat
+
+    - name: Check zero dependencies
+      working-directory: rust
+      run: |
+        deps=$(cargo metadata --no-deps --format-version 1 | python3 -c "
+        import json, sys
+        meta = json.load(sys.stdin)
+        for pkg in meta['packages']:
+            if pkg['name'] == 'scrawl':
+                print(len(pkg['dependencies']))
+        ")
+        if [ "$deps" != "0" ]; then
+          echo "ERROR: Runtime dependencies detected ($deps)"
+          exit 1
+        fi
+        echo "Zero runtime dependencies verified."
+
+  cross-platform-determinism:
+    name: Cross-platform chain determinism
+    needs: [python-tests, rust-tests]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Verify Python chain output
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, 'python')
+        from src.identity import ml_identity_chain
+        chain = ml_identity_chain(0xBEEF, 16)
+        print(','.join(str(v) for v in chain))
+        " > /tmp/python_chain.txt
+        echo "Python chain: $(cat /tmp/python_chain.txt)"

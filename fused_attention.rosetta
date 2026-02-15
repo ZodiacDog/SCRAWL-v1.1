@@ -1,0 +1,25 @@
+# ═══════════════════════════════════════════════════════════════
+# SCRAWL-in-SCRAWL: Fused Attention Pipeline
+#
+# Full attention computation: identity verification → tensor setup
+# → attention routing → result extraction.
+#
+# This demonstrates SCRAWL expressing its own attention subsystem
+# as a native program — the ISA is expressive enough to implement
+# the operations it was designed to support.
+#
+# ML Innovations LLC · M. L. McKnight · Pheba, Mississippi · 2026
+# ═══════════════════════════════════════════════════════════════
+
+# ── Step 1: Identity verification (trust before compute) ──
+CR0 = identity.derive(seed=0xF00D, depth=8)
+R1 = identity.verify(CR0, R0)
+
+# ── Step 2: Self-attention on input tensor ──
+# TR0 contains the input (loaded externally before execution)
+TR3 = attention.self(TR0)
+
+# ── Step 3: Yield verification status ──
+yield R1
+
+halt
