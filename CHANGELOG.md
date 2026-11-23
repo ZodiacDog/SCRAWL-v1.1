@@ -14,7 +14,7 @@ Created by M. L. McKnight / ML Innovations Research Lab. v1.2 fixes and the idio
 - `I_VERIFY` is now a real check: it recomputes `ml_identity_chain(seed, depth)` and the fingerprint and compares them to the stored baseline. Tampered chains and fingerprints fail. Tests cover this.
 - Unimplemented opcodes no longer silently NOP. They trap with a clear error message.
 - `C_VOTE` canonical operands are `(proposal_id, agent_id, vote_value)`. A two-operand form `(proposal_id, vote_value)` still uses `vm.agent_id`.
-- README and BENCHMARKS quotes use measured SYNAPSE and delta sizes. The true 3-byte identical-retransmit path is kept. The `github.com/mlinnovations/scrawl` URL is replaced with `https://github.com/ZodiacDog/SCRAWL-v1.1`. The missing Python core is stated clearly, not fabricated.
+- README and BENCHMARKS quotes use measured SYNAPSE and delta sizes. The true 3-byte identical-retransmit path is kept. The `github.com/ZodiacDog/SCRAWL-v1.1` URL is replaced with `https://github.com/ZodiacDog/SCRAWL-v1.1`. The missing Python core is stated clearly, not fabricated.
 - LICENSE copyright placeholder filled as `Copyright 2026 M. L. McKnight, ML Innovations Research Lab`. Contact email and phone already present in the project are unchanged.
 
 ### Added

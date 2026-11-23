@@ -52,4 +52,4 @@ Open an issue. We respond.
 
 ---
 
-**ML Innovations LLC** · M. L. McKnight · ml.innovations.research.lab@gmail.com · Pheba, Mississippi
+**ML Innovations LLC** · M. L. McKnight · ml.innovation.research.lab@gmail.com · Pheba, Mississippi

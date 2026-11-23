@@ -4,7 +4,7 @@
 
 - **M. L. McKnight**, Founder & CTO, ML Innovations Research Lab (ML Innovations LLC)  
   Pheba, Mississippi  
-  ml.innovations.research.lab@gmail.com  
+  ml.innovation.research.lab@gmail.com  
   662-295-2269
 
 SCRAWL was developed and created by ML Innovations Research Lab. The mathematical foundation is the ML Identity, discovered by M. L. McKnight in 1999 at Raymond High School, Mississippi.

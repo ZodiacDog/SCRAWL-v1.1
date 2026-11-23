@@ -3,7 +3,7 @@ name = "scrawl"
 version = "1.2.0"
 edition = "2021"
 authors = [
-    "M. L. McKnight <ml.innovations.research.lab@gmail.com>",
+    "M. L. McKnight <ml.innovation.research.lab@gmail.com>",
     "Korg (AI assistant, Grok Bot)",
 ]
 description = "Structured Compressed Runtime for Agent-to-Agent Workload Language — binary ISA and VM for AI agent communication"

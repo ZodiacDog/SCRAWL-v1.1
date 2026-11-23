@@ -109,6 +109,6 @@ We built the foundation. Now go build something on top of it.
 
 ---
 
-**ML Innovations LLC** · M. L. McKnight · ml.innovations.research.lab@gmail.com · 662-295-2269 · Pheba, Mississippi · 2026
+**ML Innovations LLC** · M. L. McKnight · ml.innovation.research.lab@gmail.com · 662-295-2269 · Pheba, Mississippi · 2026
 
 *Apache 2.0 — use it, modify it, ship it.*

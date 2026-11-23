@@ -71,4 +71,4 @@ Performance profiling is welcome (see [CONTRIBUTING.md](CONTRIBUTING.md)): ARM, 
 
 ---
 
-**ML Innovations Research Lab** · M. L. McKnight · ml.innovations.research.lab@gmail.com · Pheba, Mississippi · 2026
+**ML Innovations Research Lab** · M. L. McKnight · ml.innovation.research.lab@gmail.com · Pheba, Mississippi · 2026

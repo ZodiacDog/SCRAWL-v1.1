@@ -192,6 +192,6 @@ Apache License 2.0 — use it, modify it, ship it. See [LICENSE](LICENSE).
 
 ---
 
-**ML Innovations Research Lab** · M. L. McKnight · ml.innovations.research.lab@gmail.com · 662-295-2269 · Pheba, Mississippi · 2026
+**ML Innovations Research Lab** · M. L. McKnight · ml.innovation.research.lab@gmail.com · 662-295-2269 · Pheba, Mississippi · 2026
 
 *Built on the ML Identity — discovered 1999, Raymond High School, Mississippi*
