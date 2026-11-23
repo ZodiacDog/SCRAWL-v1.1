@@ -33,22 +33,23 @@ jobs:
         cargo run --example idioms
 
     - name: Check zero runtime dependencies
+      # Pure Python so this step is not bash-specific (Windows runners use pwsh).
       run: |
-        deps=$(cargo metadata --no-deps --format-version 1 | python3 -c "
+        cargo metadata --no-deps --format-version 1 | python3 -c "
         import json, sys
         meta = json.load(sys.stdin)
         for pkg in meta['packages']:
             if pkg['name'] == 'scrawl':
-                runtime = [d for d in pkg['dependencies'] if d.get('kind') != 'dev']
-                # cargo metadata uses 'kind': null for normal deps
                 runtime = [d for d in pkg['dependencies'] if not d.get('kind')]
-                print(len(runtime))
-        ")
-        if [ "$deps" != "0" ]; then
-          echo "ERROR: Runtime dependencies detected ($deps)"
-          exit 1
-        fi
-        echo "Zero runtime dependencies verified."
+                if runtime:
+                    print('ERROR: Runtime dependencies detected', len(runtime), file=sys.stderr)
+                    sys.exit(1)
+                print('Zero runtime dependencies verified.')
+                break
+        else:
+            print('ERROR: scrawl package not found', file=sys.stderr)
+            sys.exit(1)
+        "
 
   # The Python 3×3 matrix and 552-test jobs are omitted: the Python
   # reference core is not included in this repository.
