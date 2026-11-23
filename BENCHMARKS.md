@@ -1,92 +1,74 @@
-# SCRAWL v1.1 — Benchmarks
+# SCRAWL v1.2 — Benchmarks
 
-Performance measurements across all major subsystems. Every benchmark runs on a bare Python install with zero external dependencies.
+Numbers in the size tables below were measured from the **Rust** implementation in this repository. The Python suite `benchmarks/bench_scrawl.py` is kept as source, but it cannot be run from this tree: it imports the unpublished Python `src` package.
 
 ## Run It Yourself
 
 ```bash
-# Standard (10 trials per benchmark, ~30 seconds)
-python benchmarks/bench_scrawl.py
+# Rust Criterion benches
+cargo bench
 
-# Quick mode (~5 seconds)
-python benchmarks/bench_scrawl.py --quick
-
-# Custom trials for tighter confidence intervals
-python benchmarks/bench_scrawl.py --trials 50
-
-# Machine-readable output (writes benchmarks/results.json)
-python benchmarks/bench_scrawl.py --json
+# Python suite — requires the unpublished Python core (not in this repo)
+# python benchmarks/bench_scrawl.py --quick
 ```
 
 ## What Gets Measured
 
 | # | Benchmark | What It Tells You |
 |---|-----------|-------------------|
-| 1 | **VM Execution Throughput** | Instructions/sec across all 6 domains — the core speed limit |
-| 2 | **SYNAPSE Encode/Decode** | Frames/sec and bytes/sec for binary wire format |
-| 3 | **Delta Compression** | Compression ratios on real agent payloads, vs raw and vs JSON |
-| 4 | **ROSETTA Compile/Decompile** | Transpiler throughput and full roundtrip latency |
-| 5 | **Identity Chain Derivation** | Chain generation speed at depths 8–256, handshake latency |
-| 6 | **Consensus Round Latency** | Propose→vote→commit for 2, 5, and 10 agents |
-| 7 | **Tensor Operations** | In-place operation throughput at varying sizes |
-| 8 | **Wire Format Size** | SCRAWL binary vs equivalent JSON — byte-for-byte comparison |
+| 1 | **VM Execution Throughput** | Instructions/sec across implemented opcodes |
+| 2 | **SYNAPSE Encode/Decode** | Frames/sec and bytes/sec for the binary wire format |
+| 3 | **Delta Compression** | First-send and identical-retransmit sizes on real payloads |
+| 4 | **Identity Chain Derivation** | Chain generation speed at depths 8–256, handshake latency |
+| 5 | **Consensus Round Latency** | Propose→vote→commit for 2, 5, and 10 agents |
+| 6 | **Tensor Operations** | In-place operation throughput at varying sizes |
+| 7 | **Wire Format Size** | SCRAWL binary vs equivalent JSON — byte-for-byte |
+| 8 | **Idiom packing** | `cargo run --example idioms` — LEX_CALL vs expanded frames |
 
-## Methodology
+Timing methodology for the Python harness (when the core is available): `time.perf_counter()`, median of N trials after warmup, fresh instances, fixed seeds. Rust benches use Criterion.
 
-- **Timing:** `time.perf_counter()` wall-clock, highest resolution available
-- **Statistics:** Median of N trials (default N=10) after warmup runs — median resists outliers better than mean
-- **Isolation:** Each benchmark creates fresh VM/encoder/compressor instances — no shared state
-- **Determinism:** Identity chains use fixed seeds; results are reproducible across runs and platforms
-- **No cheating:** JSON comparisons use equivalent semantics, not strawman payloads
+## Wire Format Size: SCRAWL vs JSON (measured)
 
-## Wire Format Size: SCRAWL vs JSON
+Same instruction lists as `benchmarks/bench_scrawl.py` `bench_wire_size`, encoded with the Rust `SynapseEncoder`. JSON sizes are `len(json.dumps(...).encode("utf-8"))` of the exact payloads in that file.
 
-This is the comparison that matters most for bandwidth-constrained environments. Same operations, different encodings:
+| Operation | SCRAWL | JSON | Savings | Ratio |
+|-----------|--------|------|---------|-------|
+| Identity derive + verify + halt | 36 B | 192 B | 81.2% | 5.3× smaller |
+| Attention route (Q,K,V→out) + halt | 28 B | 113 B | 75.2% | 4.0× smaller |
+| 3-agent consensus round + halt | 72 B | 471 B | 84.7% | 6.5× smaller |
+| 10-instruction mixed program | 102 B | 664 B | 84.6% | 6.5× smaller |
 
-| Operation | SCRAWL | JSON-RPC | Savings | Ratio |
-|-----------|--------|----------|---------|-------|
-| Identity derive + verify | ~24B | ~180B | ~87% | ~7.5x smaller |
-| Attention route (Q,K,V→out) | ~16B | ~120B | ~87% | ~7.5x smaller |
-| 3-agent consensus round | ~48B | ~520B | ~91% | ~10.8x smaller |
-| 10-instruction mixed program | ~72B | ~680B | ~89% | ~9.4x smaller |
+Earlier typographic estimates (~24 B / ~16 B / ~48 B / ~72 B vs ~180 / ~120 / ~520 / ~680) understated the SYNAPSE frame (header + CRC is already about 14 bytes) and slightly overstated some JSON sizes. The compact-ISA savings remain large; the figures above are the ones to quote.
 
-> *Exact sizes depend on operand values; these are representative. Run the benchmark for your platform's exact numbers.*
+## Delta Compression (measured)
 
-## Delta Compression
+Rust `DeltaCompressor`, seed `0xBEEF`, depth 16. The first send XORs against a SHA-256 expectation stream and prepends a 1-byte flag. That XOR is not compressible by the zero-run RLE coder, so the first send is **raw + 1 byte**. A second send of an *identical* buffer XORs against the previous message (all zeros) and RLE-encodes the run: **3 bytes** when the payload is 255 bytes or less (1 flag + `0x00` + run length). Longer identical payloads use multiple RLE runs (294 B → 5 B).
 
-When two agents share a baseline (established via `IdentityHandshake`), subsequent messages transmit only the XOR delta:
+| Payload | Raw | First send | Identical retransmit |
+|---------|-----|------------|----------------------|
+| Small agent state `pos=(100,200) hp=95 ammo=30` | 27 B | 28 B | 3 B |
+| README example string `agent_position: x=100, y=200, health=95` | 39 B | 40 B | 3 B |
+| `delta_state_sync` example state (52 B) | 52 B | 53 B | 3 B |
+| 50-byte buffer | 50 B | 51 B | **3 B (94%)** |
+| Medium bench string | 128 B | 129 B | 3 B |
+| Large JSON bench payload | 294 B | 295 B | 5 B |
 
-| Payload Type | Raw Size | Compressed | Savings |
-|-------------|----------|------------|---------|
-| Small agent state | 27B | ~10B | ~63% |
-| Medium agent state | 120B | ~35B | ~71% |
-| Large JSON state | 280B | ~60B | ~79% |
-| Identical retransmit | 50B | 3B | **94%** |
+Earlier first-send claims (27 B → ~10 B, 120 B → ~35 B, 280 B → ~60 B) do not hold for this compressor. They may have been measured against the unpublished FLUX 2.0 pipeline, which is not in this repository. The **50 B → 3 B identical retransmit (94%)** claim is confirmed.
 
-The identical-retransmit case is real: agents that poll status without changes send 3 bytes instead of repeating the full state. In swarm scenarios with 100+ agents, this is the difference between saturating comms and staying silent.
+## Idiom packing (measured)
 
-## What These Numbers Mean
+`cargo run --example idioms`:
 
-**For agent framework developers:** SCRAWL's binary encoding is 7–11x smaller than JSON-RPC for equivalent operations. If your agents exchange thousands of messages per second, switching the wire format from JSON to SCRAWL eliminates most of your serialization overhead.
-
-**For swarm/multi-agent systems:** Consensus is a VM operation, not an application-layer protocol. A 10-agent propose→vote→commit cycle completes in microseconds, not milliseconds. The trace hook overhead is minimal — you get full auditability without meaningful performance cost.
-
-**For bandwidth-constrained environments:** Delta compression on structured agent state saves 70–94%. Combined with the compact binary encoding, SCRAWL can reduce total bandwidth by an order of magnitude compared to text-based protocols. This matters for satellite links, mesh networks, and contested RF environments.
-
-**For correctness-critical systems:** Integer-only identity chains are deterministic across platforms. The same seed produces the same chain on Linux, macOS, and Windows across Python 3.10–3.12. The benchmark verifies this — `all_int=True` for every depth.
+| Idiom | Expanded frame | LEX_CALL frame | Savings |
+|-------|----------------|----------------|---------|
+| Heartbeat at Cafe | 40 B | 26 B | 35.0% |
+| Named Heartbeat | 46 B | 26 B | 43.5% |
+| The Round at Two | 63 B | 39 B | 38.1% |
 
 ## Contributing Benchmarks
 
-Performance profiling is one of the highest-value contributions (see [CONTRIBUTING.md](CONTRIBUTING.md)). Things we'd especially like to see:
-
-- Benchmarks on ARM (Raspberry Pi, Apple Silicon M-series, Graviton)
-- Benchmarks on constrained environments (MicroPython, low-memory)
-- Head-to-head comparisons with MCP/A2A message overhead
-- Throughput under concurrent multi-agent workloads
-- Memory profiling (peak RSS during chain derivation, tensor ops)
-
-Submit results as a PR with your `benchmarks/results.json` and platform details.
+Performance profiling is welcome (see [CONTRIBUTING.md](CONTRIBUTING.md)): ARM, constrained environments, comparisons with MCP/A2A, concurrent workloads, memory profiling. Please include `cargo bench` output or a `results.json` plus platform details.
 
 ---
 
-**ML Innovations LLC** · M. L. McKnight · ml.innovations.research.lab@gmail.com · Pheba, Mississippi · 2026
+**ML Innovations Research Lab** · M. L. McKnight · ml.innovations.research.lab@gmail.com · Pheba, Mississippi · 2026

@@ -1,6 +1,6 @@
 //! SCRAWL v1.1 Instruction Set Architecture
 //!
-//! 84 opcodes organized into 6 operational domains.
+//! 84 base opcodes in 6 domains, plus LEX_CALL (0x60) for Darmok-style idioms.
 //! Mirrors the Python `opcodes.py` implementation exactly.
 //!
 //! ML Innovations LLC · M. L. McKnight · Pheba, Mississippi · 2026
@@ -156,7 +156,15 @@ pub enum VoteValue {
     Abstain = 2,
 }
 
-/// Unified opcode that covers all 84 instructions
+/// Lexicon / idiom extension (0x60): Darmok-style phrase compression.
+/// The 84-opcode base ISA is unchanged; LEX_CALL lives in the reserved 0x60–0xFF range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum LexiconOp {
+    Call = 0x60,
+}
+
+/// Unified opcode that covers the 84 base instructions plus LEX_CALL (0x60).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Opcode {
     Tensor(TensorOp),
@@ -165,18 +173,98 @@ pub enum Opcode {
     State(StateOp),
     Consensus(ConsensusOp),
     Identity(IdentityOp),
+    Lexicon(LexiconOp),
 }
 
 impl Opcode {
-    /// Decode a raw byte into an Opcode
+    /// Decode a raw byte into an Opcode. Safe match — no transmute.
     pub fn from_byte(b: u8) -> Option<Self> {
         match b {
-            0x00..=0x0E => Some(Self::Tensor(unsafe { std::mem::transmute(b) })),
-            0x10..=0x1D => Some(Self::Attention(unsafe { std::mem::transmute(b) })),
-            0x20..=0x2F => Some(Self::Execution(unsafe { std::mem::transmute(b) })),
-            0x30..=0x3E => Some(Self::State(unsafe { std::mem::transmute(b) })),
-            0x40..=0x4B => Some(Self::Consensus(unsafe { std::mem::transmute(b) })),
-            0x50..=0x5B => Some(Self::Identity(unsafe { std::mem::transmute(b) })),
+            0x00 => Some(Self::Tensor(TensorOp::Compose)),
+            0x01 => Some(Self::Tensor(TensorOp::Decompose)),
+            0x02 => Some(Self::Tensor(TensorOp::Transform)),
+            0x03 => Some(Self::Tensor(TensorOp::Reshape)),
+            0x04 => Some(Self::Tensor(TensorOp::Slice)),
+            0x05 => Some(Self::Tensor(TensorOp::Reduce)),
+            0x06 => Some(Self::Tensor(TensorOp::Quantize)),
+            0x07 => Some(Self::Tensor(TensorOp::Broadcast)),
+            0x08 => Some(Self::Tensor(TensorOp::Fill)),
+            0x09 => Some(Self::Tensor(TensorOp::Copy)),
+            0x0A => Some(Self::Tensor(TensorOp::Compare)),
+            0x0B => Some(Self::Tensor(TensorOp::Convert)),
+            0x0C => Some(Self::Tensor(TensorOp::Norm)),
+            0x0D => Some(Self::Tensor(TensorOp::Random)),
+            0x0E => Some(Self::Tensor(TensorOp::Einsum)),
+            0x10 => Some(Self::Attention(AttentionOp::Route)),
+            0x11 => Some(Self::Attention(AttentionOp::Mask)),
+            0x12 => Some(Self::Attention(AttentionOp::Focus)),
+            0x13 => Some(Self::Attention(AttentionOp::Scatter)),
+            0x14 => Some(Self::Attention(AttentionOp::Gather)),
+            0x15 => Some(Self::Attention(AttentionOp::Cross)),
+            0x16 => Some(Self::Attention(AttentionOp::SelfAttn)),
+            0x17 => Some(Self::Attention(AttentionOp::MultiHead)),
+            0x18 => Some(Self::Attention(AttentionOp::Sparse)),
+            0x19 => Some(Self::Attention(AttentionOp::Linear)),
+            0x1A => Some(Self::Attention(AttentionOp::Flash)),
+            0x1B => Some(Self::Attention(AttentionOp::Window)),
+            0x1C => Some(Self::Attention(AttentionOp::Pool)),
+            0x1D => Some(Self::Attention(AttentionOp::TopK)),
+            0x20 => Some(Self::Execution(ExecutionOp::Nop)),
+            0x21 => Some(Self::Execution(ExecutionOp::Halt)),
+            0x22 => Some(Self::Execution(ExecutionOp::Yield)),
+            0x23 => Some(Self::Execution(ExecutionOp::Abort)),
+            0x24 => Some(Self::Execution(ExecutionOp::Branch)),
+            0x25 => Some(Self::Execution(ExecutionOp::Loop)),
+            0x26 => Some(Self::Execution(ExecutionOp::Call)),
+            0x27 => Some(Self::Execution(ExecutionOp::Return)),
+            0x28 => Some(Self::Execution(ExecutionOp::Fork)),
+            0x29 => Some(Self::Execution(ExecutionOp::Join)),
+            0x2A => Some(Self::Execution(ExecutionOp::Trap)),
+            0x2B => Some(Self::Execution(ExecutionOp::Resume)),
+            0x2C => Some(Self::Execution(ExecutionOp::Spawn)),
+            0x2D => Some(Self::Execution(ExecutionOp::Kill)),
+            0x2E => Some(Self::Execution(ExecutionOp::Sleep)),
+            0x2F => Some(Self::Execution(ExecutionOp::Wake)),
+            0x30 => Some(Self::State(StateOp::Sync)),
+            0x31 => Some(Self::State(StateOp::Lock)),
+            0x32 => Some(Self::State(StateOp::Unlock)),
+            0x33 => Some(Self::State(StateOp::Delta)),
+            0x34 => Some(Self::State(StateOp::Apply)),
+            0x35 => Some(Self::State(StateOp::Snapshot)),
+            0x36 => Some(Self::State(StateOp::Restore)),
+            0x37 => Some(Self::State(StateOp::Publish)),
+            0x38 => Some(Self::State(StateOp::Subscribe)),
+            0x39 => Some(Self::State(StateOp::Watch)),
+            0x3A => Some(Self::State(StateOp::Cas)),
+            0x3B => Some(Self::State(StateOp::Load)),
+            0x3C => Some(Self::State(StateOp::Store)),
+            0x3D => Some(Self::State(StateOp::Evict)),
+            0x3E => Some(Self::State(StateOp::Prefetch)),
+            0x40 => Some(Self::Consensus(ConsensusOp::Propose)),
+            0x41 => Some(Self::Consensus(ConsensusOp::Vote)),
+            0x42 => Some(Self::Consensus(ConsensusOp::Commit)),
+            0x43 => Some(Self::Consensus(ConsensusOp::Reject)),
+            0x44 => Some(Self::Consensus(ConsensusOp::Quorum)),
+            0x45 => Some(Self::Consensus(ConsensusOp::Escalate)),
+            0x46 => Some(Self::Consensus(ConsensusOp::Timeout)),
+            0x47 => Some(Self::Consensus(ConsensusOp::Revoke)),
+            0x48 => Some(Self::Consensus(ConsensusOp::Delegate)),
+            0x49 => Some(Self::Consensus(ConsensusOp::Audit)),
+            0x4A => Some(Self::Consensus(ConsensusOp::Veto)),
+            0x4B => Some(Self::Consensus(ConsensusOp::Ratify)),
+            0x50 => Some(Self::Identity(IdentityOp::Derive)),
+            0x51 => Some(Self::Identity(IdentityOp::Verify)),
+            0x52 => Some(Self::Identity(IdentityOp::Baseline)),
+            0x53 => Some(Self::Identity(IdentityOp::Reconstruct)),
+            0x54 => Some(Self::Identity(IdentityOp::Rotate)),
+            0x55 => Some(Self::Identity(IdentityOp::Challenge)),
+            0x56 => Some(Self::Identity(IdentityOp::Respond)),
+            0x57 => Some(Self::Identity(IdentityOp::Bind)),
+            0x58 => Some(Self::Identity(IdentityOp::Unbind)),
+            0x59 => Some(Self::Identity(IdentityOp::Fingerprint)),
+            0x5A => Some(Self::Identity(IdentityOp::Chain)),
+            0x5B => Some(Self::Identity(IdentityOp::Split)),
+            0x60 => Some(Self::Lexicon(LexiconOp::Call)),
             _ => None,
         }
     }
@@ -190,6 +278,7 @@ impl Opcode {
             Self::State(op) => *op as u8,
             Self::Consensus(op) => *op as u8,
             Self::Identity(op) => *op as u8,
+            Self::Lexicon(op) => *op as u8,
         }
     }
 
@@ -280,6 +369,12 @@ impl Opcode {
             Self::Identity(IdentityOp::Fingerprint) => "I_FINGERPRINT",
             Self::Identity(IdentityOp::Chain) => "I_CHAIN",
             Self::Identity(IdentityOp::Split) => "I_SPLIT",
+            Self::Lexicon(LexiconOp::Call) => "LEX_CALL",
         }
     }
+}
+
+/// All 84 base opcodes, in numeric order. Does not include LEX_CALL (0x60).
+pub fn all_base_opcodes() -> Vec<Opcode> {
+    (0u8..=0x5B).filter_map(Opcode::from_byte).collect()
 }

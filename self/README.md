@@ -14,7 +14,9 @@ This directory contains ROSETTA pseudocode programs that exercise SCRAWL's core 
 
 ## Running
 
-These are ROSETTA pseudocode programs. Compile and execute them using the Python ROSETTA compiler:
+These are ROSETTA pseudocode programs. The Python ROSETTA compiler (`src.rosetta.compile_program`) is **not included in this repository**, so they cannot be compiled from this tree alone. Equivalent Rust host programs for the heartbeat and consensus idioms are in `examples/`.
+
+If you have the unpublished Python core:
 
 ```python
 from src.rosetta import compile_program

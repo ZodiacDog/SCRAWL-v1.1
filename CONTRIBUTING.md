@@ -21,19 +21,21 @@ Thanks for considering a contribution. SCRAWL is built by ML Innovations LLC and
 ## How to Contribute
 
 1. **Fork the repo** and create a branch from `main`.
-2. **Make your change.** If it touches `src/`, add or update tests in `tests/`.
-3. **Run all three test suites:**
+2. **Make your change.** If it touches the Rust `src/`, add or update tests.
+3. **Run the Rust test suites:**
    ```bash
-   python tests/test_scrawl.py       # Must pass 360/360
-   python flux_scrawl_tests.py       # Must pass 116/116
-   python tests/test_v11.py          # Must pass 76/76
+   cargo test
+   cargo test --release
+   cargo run --example heartbeat
+   cargo run --example idioms
    ```
+   This repository does **not** include the Python reference core or the 552 Python tests. Do not add a fake `python/src` to make those commands work.
 4. **Open a PR.** Describe what you changed and why. Link any relevant issues.
 
 ## Rules
 
 - **Zero external dependencies.** SCRAWL's core (`src/`) must run on a bare Python 3.10+ install. No numpy, no protobuf, no anything. If your change adds an `import` that isn't in the Python standard library, it belongs in a separate bridge module, not in `src/`.
-- **Tests are mandatory.** No PR merges without passing all 552 tests plus any new tests for the new feature.
+- **Tests are mandatory.** No PR merges without passing `cargo test` and `cargo test --release` plus any new tests for the new feature.
 - **ROSETTA roundtrip.** If you add an opcode, both the decompiler and compiler must handle it. If `decompile → compile → decompile` doesn't produce identical output, it doesn't ship.
 - **Integer determinism.** Any code that touches identity chains, baselines, or fingerprints must use integer arithmetic only. No `float` in the identity path. Section 2.3 of the ML Identity paper explains why.
 

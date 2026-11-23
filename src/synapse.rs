@@ -10,6 +10,8 @@ use crate::opcodes::Opcode;
 /// Magic bytes identifying a SYNAPSE frame
 pub const SYNAPSE_MAGIC: [u8; 4] = [0x53, 0x43, 0x52, 0x57]; // "SCRW"
 pub const SYNAPSE_VERSION: u8 = 0x10; // v1.0
+/// Frame flag: payload may contain LEX_CALL (0x60) idiom references.
+pub const SYNAPSE_FLAG_LEXICON: u8 = 0x01;
 
 /// Operand value — can be integer, float, or a list
 #[derive(Debug, Clone)]
@@ -87,11 +89,20 @@ pub fn decode_varint(data: &[u8]) -> (u64, usize) {
 /// SYNAPSE frame encoder
 pub struct SynapseEncoder {
     sequence_id: u32,
+    flags: u8,
 }
 
 impl SynapseEncoder {
     pub fn new() -> Self {
-        Self { sequence_id: 0 }
+        Self { sequence_id: 0, flags: 0 }
+    }
+
+    pub fn with_flags(flags: u8) -> Self {
+        Self { sequence_id: 0, flags }
+    }
+
+    pub fn set_flags(&mut self, flags: u8) {
+        self.flags = flags;
     }
 
     /// Encode a program into a SYNAPSE frame
@@ -134,7 +145,7 @@ impl SynapseEncoder {
         let mut frame = Vec::new();
         frame.extend(&SYNAPSE_MAGIC);
         frame.push(SYNAPSE_VERSION);
-        frame.push(0x00); // flags
+        frame.push(self.flags);
         frame.extend(&self.sequence_id.to_le_bytes());
         frame.extend(encode_varint(payload.len() as u64));
         frame.extend(&payload);

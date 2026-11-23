@@ -1,0 +1,54 @@
+name: SCRAWL CI
+
+on:
+  push:
+    branches: [ main, develop, fix/v1.2 ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  rust-tests:
+    name: Rust ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cargo test (debug)
+      run: cargo test --all
+
+    - name: Cargo test (release)
+      run: cargo test --release
+
+    - name: Run examples
+      run: |
+        cargo run --example heartbeat
+        cargo run --example idioms
+
+    - name: Check zero runtime dependencies
+      run: |
+        deps=$(cargo metadata --no-deps --format-version 1 | python3 -c "
+        import json, sys
+        meta = json.load(sys.stdin)
+        for pkg in meta['packages']:
+            if pkg['name'] == 'scrawl':
+                runtime = [d for d in pkg['dependencies'] if d.get('kind') != 'dev']
+                # cargo metadata uses 'kind': null for normal deps
+                runtime = [d for d in pkg['dependencies'] if not d.get('kind')]
+                print(len(runtime))
+        ")
+        if [ "$deps" != "0" ]; then
+          echo "ERROR: Runtime dependencies detected ($deps)"
+          exit 1
+        fi
+        echo "Zero runtime dependencies verified."
+
+  # The Python 3×3 matrix and 552-test jobs are omitted: the Python
+  # reference core is not included in this repository.

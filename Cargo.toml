@@ -1,17 +1,20 @@
 [package]
 name = "scrawl"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
-authors = ["M. L. McKnight <ml.innovations.research.lab@gmail.com>"]
+authors = [
+    "M. L. McKnight <ml.innovations.research.lab@gmail.com>",
+    "Korg (AI assistant, Grok Bot)",
+]
 description = "Structured Compressed Runtime for Agent-to-Agent Workload Language — binary ISA and VM for AI agent communication"
 license = "Apache-2.0"
-repository = "https://github.com/mlinnovations/scrawl"
+repository = "https://github.com/ZodiacDog/SCRAWL-v1.1"
 keywords = ["ai", "agents", "isa", "vm", "communication"]
 categories = ["algorithms", "encoding", "simulation"]
 rust-version = "1.70"
 
 [dependencies]
-# Zero external dependencies — mirrors the Python philosophy
+# Zero external runtime dependencies
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -24,7 +27,4 @@ harness = false
 name = "heartbeat"
 
 [[example]]
-name = "delta_sync"
-
-[[example]]
-name = "consensus"
+name = "idioms"

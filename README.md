@@ -1,123 +1,132 @@
-# SCRAWL v1.1
+# SCRAWL v1.2
 
 **Structured Compressed Runtime for Agent-to-Agent Workload Language**
 
 ```
-552 tests (Python) + full Rust test suite | 100% pass | zero dependencies | 3 implementations
+Rust implementation · 84-opcode ISA + LEX_CALL idioms · zero runtime dependencies
 ```
 
 SCRAWL is a binary instruction set and runtime for AI agent communication. Where existing protocols treat agent messages as text to be parsed, SCRAWL treats them as programs to be executed — 84 opcodes across six domains, transmitted in a compact binary wire format, with delta compression derived from the ML Identity equation. One agent compiles intent into SCRAWL instructions; the receiving agent executes them directly on a register-based VM.
 
-**Three implementations, one ISA:**
+This repository is the **Rust implementation** (plus documentation and ROSETTA *source* examples). The Python reference core (`python/src/`, the ROSETTA compiler, and the 552 Python tests described in earlier write-ups) is **not included here** and is not fabricated in this tree.
 
-| Implementation | Language | Status | Run It |
-|---------------|----------|--------|--------|
-| [python/](python/) | Python 3.10+ | 552/552 tests, production-ready | `python python/examples/heartbeat.py` |
-| [rust/](rust/) | Rust 1.70+ | Full test suite, zero `unsafe` in hot paths | `cd rust && cargo run --example heartbeat` |
-| [self/](self/) | SCRAWL (ROSETTA) | Self-hosted proof of expressiveness | See [self/README.md](self/README.md) |
-
-All three implementations share the same ISA, the same SYNAPSE wire format, and produce identical identity chains from the same seed. A Python agent and a Rust agent can communicate over SCRAWL without translation.
-
-## Why SCRAWL?
-
-**The problem:** AI agents talking to each other waste most of their bandwidth on syntax. JSON-RPC messages, protocol negotiation, schema validation — all overhead that exists because we're forcing agents to communicate the way humans read.
-
-**What SCRAWL does differently:**
-
-- **Binary ISA, not text protocol.** 84 instructions encode in 4–12 bytes each. A consensus round that takes 520+ bytes in JSON is 48 bytes in SCRAWL.
-- **Execute, don't parse.** The receiving agent runs instructions directly on a register-based VM.
-- **Delta compression from first principles.** Agents establish a shared mathematical baseline (ML Identity: `a + a² + b = b²`). Subsequent messages transmit only the XOR delta. Identical messages compress to 3 bytes.
-- **Consensus built into the ISA.** `C_PROPOSE`, `C_VOTE`, `C_COMMIT` are native opcodes.
-- **Zero external dependencies.** Both Python and Rust implementations: no numpy, no protobuf, no tokio, no serde.
-- **Auditable by design.** ROSETTA transpiles any binary to readable pseudocode and back. Every roundtrip is deterministic.
+**Creator:** M. L. McKnight / ML Innovations Research Lab  
+**v1.2 contributor:** Korg (AI assistant, Grok Bot) — fixes and the idiom layer
 
 ## Quick Start
 
-**Python:**
 ```bash
-git clone https://github.com/mlinnovations/scrawl.git
-cd scrawl
-python python/examples/heartbeat.py
-```
-
-**Rust:**
-```bash
-cd rust
+git clone https://github.com/ZodiacDog/SCRAWL-v1.1.git
+cd SCRAWL-v1.1
+cargo test
+cargo test --release
 cargo run --example heartbeat
+cargo run --example idioms
 ```
 
-**5-line agent heartbeat (Python):**
-```python
-from src.vm import ScrawlVM
-from src.synapse import Instruction
-from src.opcodes import IdentityOp, ExecutionOp
+**5-line agent heartbeat (Rust):**
 
-vm = ScrawlVM()
-vm.execute([
-    Instruction(IdentityOp.I_DERIVE, [0, 0xCAFE, 16]),
-    Instruction(IdentityOp.I_VERIFY, [0, 0, 1]),
-    Instruction(ExecutionOp.X_YIELD, [1]),
-    Instruction(ExecutionOp.X_HALT),
-])
-print(f"Identity verified: {vm.registers.get_reg(1) == 1}")  # True
+```rust
+use scrawl::vm::ScrawlVM;
+use scrawl::synapse::{Instruction, Operand};
+use scrawl::opcodes::*;
+
+let mut vm = ScrawlVM::new();
+vm.execute(&[
+    Instruction::new(Opcode::Identity(IdentityOp::Derive),
+        vec![Operand::Int(0), Operand::Int(0xCAFE), Operand::Int(16)]),
+    Instruction::new(Opcode::Identity(IdentityOp::Verify),
+        vec![Operand::Int(0), Operand::Int(0), Operand::Int(1)]),
+    Instruction::new(Opcode::Execution(ExecutionOp::Yield),
+        vec![Operand::Int(1)]),
+    Instruction::new(Opcode::Execution(ExecutionOp::Halt), vec![]),
+]);
+assert_eq!(vm.registers.get_reg(1), 1); // chain recomputed from seed and matched
 ```
 
-## Benchmarks
+`I_VERIFY` recomputes `ml_identity_chain(seed, depth)` and the fingerprint and compares them to the stored baseline. A tampered chain fails verification.
 
-Both implementations include benchmark suites. Run them:
+## What's in this repo vs. what isn't
+
+| Included | Not included |
+|----------|----------------|
+| Rust crate (`src/`, `examples/`, `benches/`, `tests/`) | Python package `src/*.py` (opcodes, vm, rosetta, …) |
+| SYNAPSE encoder/decoder, identity, VM, idiom registry | ROSETTA compiler (`rosetta.py`) — `.rosetta` files are source only |
+| Unit + integration tests (`cargo test`) | The 552 Python tests (`test_scrawl.py`, `test_v11.py`, `flux_scrawl_tests.py`) |
+| `benchmarks/bench_scrawl.py` (source) | A runnable Python benchmark — that file imports the unpublished `src` package |
+| `docs/IDIOMS.md` and a working LEX_CALL implementation | FLUX 2.0 (`flux_scrawl.py`) |
+
+Python examples that live in the sibling repo [SCRAWL-Structured-…](https://github.com/ZodiacDog/SCRAWL-Structured-Compressed-Runtime-for-Agent-to-Agent-Workload-Language) also `import src.*` and will not run until that core is published.
+
+## Benchmarks (measured)
+
+Run the Rust benches with `cargo bench`. The tables below replace earlier typographic estimates with numbers measured from this encoder and compressor. Methodology: [BENCHMARKS.md](BENCHMARKS.md).
+
+**Wire format size — SCRAWL (this Rust SYNAPSE encoder) vs the JSON payloads in `benchmarks/bench_scrawl.py`:**
+
+| Operation | SCRAWL | JSON | Savings |
+|-----------|--------|------|---------|
+| Identity derive + verify + halt | 36 B | 192 B | **81.2%** (5.3× smaller) |
+| Attention route (Q,K,V→out) + halt | 28 B | 113 B | **75.2%** (4.0× smaller) |
+| 3-agent consensus round + halt | 72 B | 471 B | **84.7%** (6.5× smaller) |
+| 10-instruction mixed program | 102 B | 664 B | **84.6%** (6.5× smaller) |
+
+**Delta compression** (Rust `DeltaCompressor`, seed `0xBEEF`, depth 16):
+
+| Payload | Raw | First send | Identical retransmit |
+|---------|-----|------------|----------------------|
+| Small agent state (`pos=(100,200) hp=95 ammo=30`) | 27 B | 28 B (flag + payload) | **3 B** |
+| 50-byte buffer | 50 B | 51 B | **3 B (94%)** |
+| Large JSON state | 294 B | 295 B | 5 B (RLE run length is capped at 255) |
+
+The first send of a fresh payload is raw size plus a 1-byte flag: XOR against a SHA-256 expectation stream does not shrink the first message in this compressor. The **identical-retransmit 3-byte** path is real (RLE of a zero XOR against the previous message) for payloads of 255 bytes or less.
+
+## Idioms (Darmok-style compression)
+
+A short named phrase can stand for a whole multi-step command sequence. The standard table is **SCRAWL Idioms 1.0**. Full rules — definition record, versioning, lexicon fingerprint in the handshake, `LEX_CALL` (opcode `0x60`), the SYNAPSE flag bit, trap-on-unknown, longest-match packing, and collision handling — are in [docs/IDIOMS.md](docs/IDIOMS.md).
+
+Four idioms are executable in this crate:
+
+| Phrase | Expansion | Measured SYNAPSE frame |
+|--------|-----------|------------------------|
+| **Heartbeat at Cafe** | `I_DERIVE, I_VERIFY, X_YIELD, X_HALT` | 40 B expanded → **26 B** `LEX_CALL` (**35.0%**) |
+| **Named Heartbeat** | `I_DERIVE, I_VERIFY, I_FINGERPRINT, X_YIELD, X_HALT` | 46 B → **26 B** (**43.5%**) |
+| **The Round at Two** | propose, quorum 0.5, two APPROVE votes, commit, halt | 63 B → **39 B** (**38.1%**) |
+| **Silent Retransmit** | host-level second `compress()` of an unchanged buffer | 50 B payload: 51 B first, **3 B** second |
 
 ```bash
-# Python
-python python/benchmarks/bench_scrawl.py --quick
-
-# Rust
-cd rust && cargo bench
+cargo run --example idioms
 ```
 
-**Wire format size — SCRAWL vs JSON-RPC:**
-
-| Operation | SCRAWL | JSON-RPC | Savings |
-|-----------|--------|----------|---------|
-| Identity derive + verify | ~24B | ~180B | **~87%** |
-| Attention route (Q,K,V→out) | ~16B | ~120B | **~87%** |
-| 3-agent consensus round | ~48B | ~520B | **~91%** |
-| 10-instruction mixed program | ~72B | ~680B | **~89%** |
-
-**Delta compression on real payloads:**
-
-| Payload | Raw | Compressed | Savings |
-|---------|-----|------------|---------|
-| Small agent state | 27B | ~10B | ~63% |
-| Large JSON state | 280B | ~60B | ~79% |
-| Identical retransmit | 50B | 3B | **94%** |
-
-Full methodology: [BENCHMARKS.md](BENCHMARKS.md)
+Agents include the 8-byte lexicon fingerprint in `IdentityHandshake::derive_shared_key_with_lexicon`. A `LEX_CALL` for an unknown id traps; it is never a silent NOP.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    ROSETTA v1.1                      │
-│         Human-readable ↔ Binary transpiler           │
-│         84 opcodes + macro layer                     │
+│     Human-readable form (compiler not in this repo)  │
+│     84 opcodes + Idioms 1.0 macro / LEX_CALL layer   │
 ├─────────────────────────────────────────────────────┤
 │                   SYNAPSE v1.0                       │
 │          Binary wire format + CRC-32C                │
 │     Magic | Version | Flags | SeqID | Payload | CRC  │
+│     Flag 0x01 = frame may contain LEX_CALL           │
 ├─────────────────────────────────────────────────────┤
-│                  SCRAWL VM v1.1                      │
+│                  SCRAWL VM v1.2                      │
 │     Register-based execution engine                  │
 │     256 GP + 64 tensor + 16 context registers        │
+│     Unimplemented opcodes trap (not silent NOPs)     │
 ├──────────┬──────────┬──────────┬────────────────────┤
 │ Tensor   │ Attention│ Execution│ State | Consensus   │
 │ 15 ops   │ 14 ops   │ 16 ops   │ 15+12 ops          │
 ├──────────┴──────────┴──────────┴────────────────────┤
 │              ML Identity Foundation                  │
-│    a + a² + b = b² (integer-only, cross-platform)    │
+│    a + a² + b = b² (integer-only, i128 intermediates)│
 └─────────────────────────────────────────────────────┘
 ```
 
-**Six operational domains — 84 total opcodes:**
+**Six operational domains — 84 base opcodes**, plus `LEX_CALL` at `0x60` in the reserved extension range `0x60–0xFF`.
 
 - **Tensor** (15): compose, decompose, transform, reshape, slice, reduce, quantize, broadcast, fill, copy, compare, convert, normalize, random, einsum
 - **Attention** (14): route, mask, focus, scatter, gather, cross, self, multi-head, sparse, linear, flash, window, pool, topk
@@ -125,6 +134,10 @@ Full methodology: [BENCHMARKS.md](BENCHMARKS.md)
 - **State** (15): sync, lock, unlock, delta, apply, snapshot, restore, publish, subscribe, watch, cas, load, store, evict, prefetch
 - **Consensus** (12): propose, vote, commit, reject, quorum, escalate, timeout, revoke, delegate, audit, veto, ratify
 - **Identity** (12): derive, verify, baseline, reconstruct, rotate, challenge, respond, bind, unbind, fingerprint, chain, split
+
+See CHANGELOG.md for which of these the VM actually executes, and which still trap with a clear error.
+
+`C_VOTE` operands are `(proposal_id, agent_id, vote_value)`. A two-operand form `(proposal_id, vote_value)` still works and uses `vm.agent_id`. Vote `0` is APPROVE, `1` is REJECT.
 
 ## The ML Identity
 
@@ -134,41 +147,44 @@ SCRAWL's mathematical foundation, discovered by M. L. McKnight in 1999 at Raymon
 a + a² + b = b²    where b = a + 1
 ```
 
-This identity holds in any commutative ring. SCRAWL uses it for shared baselines, delta compression (70–94%), zero-cost algebraic verification, and gnomon incremental chain updates. The complete treatment is in *The ML Identity Theorem Family* paper (17 theorems, 6 engineering applications).
+This identity holds in any commutative ring. SCRAWL uses it for shared baselines, gnomon incremental chain updates, and a zero-cost algebraic check in `C_COMMIT`. **Identity authentication** (`I_VERIFY`) does *not* use that tautology alone: it recomputes the chain from the seed and depth. The complete treatment is in *The ML Identity Theorem Family* paper (17 theorems, 6 engineering applications), which is not shipped in this repository.
 
 ## Project Structure
 
 ```
 scrawl/
-├── python/                     # Reference implementation
-│   ├── src/                    # 6 modules, 3,386 lines, zero dependencies
-│   ├── tests/                  # 436 tests (360 core + 76 v1.1)
-│   ├── examples/               # 4 runnable demos
-│   └── benchmarks/             # 8-subsystem benchmark suite
-├── rust/                       # Rust implementation
-│   ├── src/                    # 5 modules, zero runtime dependencies
-│   ├── tests/                  # Comprehensive test coverage
-│   ├── benches/                # Criterion benchmarks
-│   ├── examples/               # Rust examples
-│   └── Cargo.toml
-├── self/                       # SCRAWL-in-SCRAWL
-│   ├── programs/               # Self-hosted ROSETTA programs
-│   └── README.md
-├── .github/workflows/ci.yml   # Python 3×3 matrix + Rust 3-OS
+├── src/                        # Rust implementation
+│   ├── lib.rs
+│   ├── opcodes.rs
+│   ├── identity.rs
+│   ├── registers.rs
+│   ├── synapse.rs
+│   ├── idioms.rs               # SCRAWL Idioms 1.0
+│   └── vm.rs
+├── examples/
+│   ├── heartbeat.rs
+│   └── idioms.rs
+├── tests/
+├── benches/                    # Criterion (cargo bench)
+├── benchmarks/                 # Python bench source (requires unpublished src/)
+├── self/programs/              # ROSETTA examples (compiler not in this repo)
+├── docs/IDIOMS.md
 ├── README.md
-├── BENCHMARKS.md               # Methodology & results
-├── FORKING.md                  # Guide to extending SCRAWL
+├── BENCHMARKS.md
+├── CHANGELOG.md
+├── AUTHORS.md
+├── FORKING.md
 ├── CONTRIBUTING.md
 └── LICENSE                     # Apache 2.0
 ```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Issues welcome. PRs for new macros, opcodes, benchmarks, and language ports especially.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Run `cargo test` and `cargo test --release` before opening a PR.
 
 ## Fork It
 
-SCRAWL is Apache 2.0. Fork it, extend it, ship it. See [FORKING.md](FORKING.md) for the full guide — domain-specific ISA extensions, language ports, bridge modules, research forks. If you build something with SCRAWL, open an issue titled `[Fork] Your Project Name`.
+SCRAWL is Apache 2.0. See [FORKING.md](FORKING.md). If you build something with SCRAWL, open an issue titled `[Fork] Your Project Name`.
 
 ## License
 
@@ -176,6 +192,6 @@ Apache License 2.0 — use it, modify it, ship it. See [LICENSE](LICENSE).
 
 ---
 
-**ML Innovations LLC** · M. L. McKnight · ml.innovations.research.lab@gmail.com · 662-295-2269 · Pheba, Mississippi · 2026
+**ML Innovations Research Lab** · M. L. McKnight · ml.innovations.research.lab@gmail.com · 662-295-2269 · Pheba, Mississippi · 2026
 
 *Built on the ML Identity — discovered 1999, Raymond High School, Mississippi*

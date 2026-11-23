@@ -1,11 +1,11 @@
 //! SCRAWL Agent Heartbeat — Rust
 //!
-//! The simplest SCRAWL program: derive identity, verify, fingerprint, halt.
+//! The simplest SCRAWL program: derive identity, verify the chain, fingerprint, halt.
 //! If this runs, your Rust stack works.
 //!
 //! Usage: cargo run --example heartbeat
 
-use scrawl::identity::{ml_identity, ml_identity_verify};
+use scrawl::identity::ml_identity;
 use scrawl::vm::ScrawlVM;
 use scrawl::synapse::{Instruction, Operand};
 use scrawl::opcodes::*;

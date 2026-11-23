@@ -21,7 +21,7 @@ Build the extension, register opcodes in the 0x60+ range, add ROSETTA compile/de
 
 ### Language Ports
 
-SCRAWL is pure Python today. The ISA and wire format are language-independent.
+This repository ships a Rust implementation. The ISA and wire format are language-independent. The Python reference core is not included in this tree.
 
 **Port ideas:**
 - **Rust:** Zero-copy SYNAPSE decoder, no-alloc VM for embedded agents
@@ -30,7 +30,7 @@ SCRAWL is pure Python today. The ISA and wire format are language-independent.
 - **JavaScript/WASM:** Browser-based agent visualization and debugging
 - **Zig:** Safety-critical deployment without runtime overhead
 
-The SYNAPSE wire format spec (magic bytes, CRC-32C, varint encoding) is fully documented in `src/synapse.py`. Any implementation that speaks SYNAPSE can interop with any other — regardless of language.
+The SYNAPSE wire format spec (magic bytes, CRC-32C, varint encoding) is documented in `src/synapse.rs` (and, when published, in the Python `synapse.py`). Any implementation that speaks SYNAPSE can interop with any other — regardless of language.
 
 ### Bridge Modules
 
@@ -65,12 +65,10 @@ SCRAWL has 552 tests for a reason. When you fork:
 
 ```bash
 # Your fork should still pass these
-python tests/test_scrawl.py       # 360 core tests
-python flux_scrawl_tests.py       # 116 FLUX tests
-python tests/test_v11.py          # 76 v1.1 tests
+cargo test
+cargo test --release
 
 # Plus your new tests
-python tests/test_your_extension.py
 ```
 
 If your extension breaks a core test, you've broken interoperability. Fix it before shipping.

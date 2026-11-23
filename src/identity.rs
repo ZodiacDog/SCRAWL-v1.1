@@ -24,14 +24,18 @@ use std::collections::HashMap;
 /// Returns (b, lhs) where lhs == b² for all a.
 #[inline]
 pub fn ml_identity(a: i64) -> (i64, i64) {
-    let b = a + 1;
-    let lhs = a + a * a + b;
-    (b, lhs)
+    // i128 intermediates; for |a| small enough to fit in i64 squares, results match i64 math.
+    let a128 = a as i128;
+    let b = a128 + 1;
+    let lhs = a128 + a128 * a128 + b;
+    (b as i64, lhs as i64)
 }
 
 /// Verify the ML Identity holds for a given value of a.
+/// Uses i128 intermediates so large 32-bit chain-range values do not overflow.
 #[inline]
 pub fn ml_identity_verify(a: i64) -> bool {
+    let a = a as i128;
     let b = a + 1;
     a + a * a + b == b * b
 }
@@ -80,7 +84,8 @@ pub fn ml_triangular_square_duality(n: u64) -> (u64, u64) {
 /// Any single-value corruption detected. Cost: one add + one comparison.
 #[inline]
 pub fn ml_algebraic_verify(a: u64, a_sq: u64, b: u64, b_sq: u64) -> bool {
-    a + a_sq + b == b_sq
+    // Wide add so large intermediates do not wrap silently.
+    (a as u128) + (a_sq as u128) + (b as u128) == (b_sq as u128)
 }
 
 /// Chain ML Identity derivations to generate a deterministic integer sequence.
@@ -312,6 +317,20 @@ impl IdentityBaseline {
         data.extend_from_slice(&self.fingerprint);
         data
     }
+
+    /// Recompute the chain from (seed, depth) and the fingerprint from that
+    /// chain. Returns true only if both match the stored values.
+    ///
+    /// This is a real integrity check, not the algebraic tautology
+    /// `a + a² + b == b²` (which holds for every integer a).
+    pub fn verify_integrity(&self) -> bool {
+        let expected_chain = ml_identity_chain(self.seed, self.depth);
+        if expected_chain != self.chain {
+            return false;
+        }
+        let expected_fp = Self::compute_fingerprint(self.seed, self.depth, &self.chain);
+        expected_fp == self.fingerprint
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -335,11 +354,24 @@ impl IdentityHandshake {
         (baseline, matches)
     }
 
+    /// Derive a 32-byte shared key from the baseline and agent ids.
+    /// Pass `lexicon_fingerprint` (see `idioms::lexicon_fingerprint`) so two
+    /// agents cannot silently disagree about "SCRAWL Idioms 1.0".
     pub fn derive_shared_key(
         baseline: &IdentityBaseline, agent_a_id: u32, agent_b_id: u32,
     ) -> [u8; 32] {
+        Self::derive_shared_key_with_lexicon(baseline, agent_a_id, agent_b_id, &[0u8; 8])
+    }
+
+    pub fn derive_shared_key_with_lexicon(
+        baseline: &IdentityBaseline,
+        agent_a_id: u32,
+        agent_b_id: u32,
+        lexicon_fingerprint: &[u8; 8],
+    ) -> [u8; 32] {
         let mut data = Vec::new();
         data.extend_from_slice(&baseline.fingerprint);
+        data.extend_from_slice(lexicon_fingerprint);
         let low = agent_a_id.min(agent_b_id);
         let high = agent_a_id.max(agent_b_id);
         data.extend_from_slice(&low.to_le_bytes());
@@ -635,5 +667,45 @@ mod tests {
             let (t_prev, t_curr) = ml_triangular_square_duality(n);
             assert_eq!(t_prev + t_curr, n * n, "Duality failed at n={}", n);
         }
+    }
+
+    #[test]
+    fn test_ml_identity_verify_large_values_do_not_overflow() {
+        // These values appear in real chains (32-bit mixed outputs) and
+        // overflowed i64 multiplication in v1.1 debug builds.
+        for &a in &[0i64, 1, 42, 3_037_000_499, 4_181_567_048, 4_294_967_295] {
+            assert!(ml_identity_verify(a), "verify panicked or failed at a={}", a);
+        }
+    }
+
+    #[test]
+    fn test_baseline_verify_integrity_ok() {
+        let b = IdentityBaseline::new(0xCAFE, 16);
+        assert!(b.verify_integrity());
+        let b2 = IdentityBaseline::new(0xBEEF, 16);
+        assert!(b2.verify_integrity());
+    }
+
+    #[test]
+    fn test_baseline_verify_integrity_tampered_chain_fails() {
+        let mut b = IdentityBaseline::new(0xCAFE, 16);
+        assert!(b.verify_integrity());
+        assert!(b.chain.len() > 3);
+        b.chain[3] ^= 1;
+        assert!(!b.verify_integrity(), "tampered chain must fail verification");
+    }
+
+    #[test]
+    fn test_baseline_verify_integrity_tampered_fingerprint_fails() {
+        let mut b = IdentityBaseline::new(0xCAFE, 16);
+        b.fingerprint[0] ^= 0xFF;
+        assert!(!b.verify_integrity(), "tampered fingerprint must fail verification");
+    }
+
+    #[test]
+    fn test_baseline_verify_integrity_wrong_seed_fails() {
+        let mut b = IdentityBaseline::new(0xCAFE, 16);
+        b.seed = 0xBEEF;
+        assert!(!b.verify_integrity());
     }
 }
